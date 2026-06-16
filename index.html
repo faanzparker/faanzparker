@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faanz Order Bio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        utama: '#10539F',
+                        aksen: '#22c55e',
+                        abu: '#f3f4f6'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gradient-to-br from-gray-100 to-gray-200 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md border-t-4 border-utama">
+        <!-- Header -->
+        <div class="flex justify-center mb-4">
+            <div class="w-16 h-16 bg-utama/15 rounded-full flex items-center justify-center">
+                <span class="text-utama text-3xl font-bold">FS</span>
+            </div>
+        </div>
+        <h2 class="text-center text-2xl font-bold text-gray-800 mb-2"OBROLAN FEEDBACK></h2>
+        <p class="text-center text-gray-600 mb-5">Silakan tulis pesan kamu di bawah ini ✨</p>
+
+        <!-- Area Percakapan -->
+        <div id="areaChat" class="bg-abu rounded-lg p-4 h-64 overflow-y-auto mb-4 text-sm space-y-3">
+            <div class="text-gray-500 italic text-center">Menunggu pesan dari pemilik...</div>
+        </div>
+
+        <!-- Form Kirim Pengunjung -->
+        <form id="formPesan" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Nama Pengirim</label>
+                <input type="text" id="nama" placeholder="Contoh: Messi" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-utama/40" required>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Isi Pesan</label>
+                <textarea id="pesan" rows="3" placeholder="Tulis apa yang ingin disampaikan..." class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-utama/40 resize-none" required></textarea>
+            </div>
+            <button type="submit" id="tombolKirim" class="w-full bg-utama hover:bg-utama/90 text-white font-bold py-3 rounded-lg shadow transition">
+                🚀 KIRIM PESAN
+            </button>
+            <div id="infoStatus" class="text-center font-medium hidden"></div>
+        </form>
+
+        <p class="text-center text-xs text-gray-500 mt-5">© 2026 Faanz Store</p>
+    </div>
+
+    <script>
+        // Data Bot Telegram
+        const TOKEN_BOT = "8833638608:AAEeWjZ2AMud78LXXKNuzrsn6kUXhsyXQps";
+        const ID_PEMILIK = "8597220780";
+        const BASE_API = `https://api.telegram.org/bot${TOKEN_BOT}`;
+
+        let offset = 0;
+        let balasanSebelumnya = "";
+
+        // --- Fungsi Kirim Pesan Pengunjung ke Telegram ---
+        const form = document.getElementById("formPesan");
+        const status = document.getElementById("infoStatus");
+        const tombol = document.getElementById("tombolKirim");
+        const areaChat = document.getElementById("areaChat");
+
+        form.addEventListener("submit", async function(e) {
+            e.preventDefault();
+            status.classList.add("hidden");
+            tombol.disabled = true;
+            tombol.textContent = "⏳ Mengirim...";
+
+            const nama = document.getElementById("nama").value.trim();
+            const pesan = document.getElementById("pesan").value.trim();
+
+            // Tampilkan pesan pengunjung di halaman
+            tambahPesan(`👤 ${nama}`, pesan, "kiri");
+
+            // Kirim ke Telegram kamu
+            const teksKirim = `📩 PESAN BARU\n\n👤 Nama: ${nama}\n💬 Pesan:\n${pesan}\n\nBalas pakai: /kirimpesan [teks balasan]`;
+            try {
+                await fetch(`${BASE_API}/sendMessage?chat_id=${ID_PEMILIK}&text=${encodeURIComponent(teksKirim)}`);
+                status.textContent = "✅ Pesan terkirim!";
+                status.className = "text-center mt-2 text-green-600";
+                form.reset();
+            } catch (err) {
+                status.textContent = "❌ Gagal kirim!";
+                status.className = "text-center mt-2 text-red-600";
+            }
+
+            status.classList.remove("hidden");
+            tombol.disabled = false;
+            tombol.textContent = "🚀 KIRIM PESAN";
+        });
+
+        // --- Fungsi Cek Balasan dari Pemilik ---
+        async function cekBalasan() {
+            try {
+                const res = await fetch(`${BASE_API}/getUpdates?offset=${offset}&timeout=10`);
+                const data = await res.json();
+                if (!data.ok) return;
+
+                for (const update of data.result) {
+                    offset = update.update_id + 1;
+                    const msg = update.message;
+                    if (!msg || msg.chat.id != ID_PEMILIK) continue;
+
+                    const teks = msg.text.trim();
+                    // Baca perintah /kirimpesan
+                    if (teks.startsWith("/kirimpesan ")) {
+                        const isiBalas = teks.replace("/kirimpesan ", "").trim();
+                        if (isiBalas && isiBalas !== balasanSebelumnya) {
+                            balasanSebelumnya = isiBalas;
+                            tambahPesan("🤖 Pesan dari Pemilik", isiBalas, "kanan");
+                        }
+                    }
+                }
+            } catch (err) {
+                // Abaikan error jaringan sementara
+            }
+        }
+
+        // --- Fungsi Tampilkan Pesan di Area Chat ---
+        function tambahPesan(judul, isi, posisi) {
+            const div = document.createElement("div");
+            div.className = posisi === "kanan" 
+                ? "text-right" 
+                : "text-left";
+            div.innerHTML = `
+                <p class="text-xs text-gray-500 mb-1">${judul}</p>
+                <div class="inline-block max-w-[85%] rounded-xl px-3 py-2 ${
+                    posisi === "kanan" 
+                    ? "bg-utama text-white rounded-tr-none" 
+                    : "bg-white border border-gray-200 rounded-tl-none"
+                }">${isi}</div>
+            `;
+            areaChat.appendChild(div);
+            areaChat.scrollTop = areaChat.scrollHeight;
+        }
+
+        // Jalankan pengecekan setiap 4 detik
+        setInterval(cekBalasan, 4000);
+    </script>
+</body>
+</html>
